@@ -216,21 +216,22 @@ print(f"   Knowledge Assistant: {KA_ID}")
 # MAGIC RETURNS TABLE (
 # MAGIC     connected_to STRING,
 # MAGIC     relationship_type STRING,
-# MAGIC     risk_score INT,
-# MAGIC     cluster_id STRING,
-# MAGIC     shared_attributes STRING
+# MAGIC     strength_score DOUBLE,
+# MAGIC     transaction_count INT,
+# MAGIC     first_seen DATE,
+# MAGIC     last_seen DATE
 # MAGIC )
-# MAGIC COMMENT 'Analyze 1st-hop network graph connections for mule network indicators. A normal customer has 3-5 connections. Dense clusters (>8 connections with high risk scores) may indicate organized crime or mule networks. Returns all direct connections with relationship type, cluster membership, and shared attributes.'
+# MAGIC COMMENT 'Analyze 1st-hop network graph connections for mule network indicators. A normal customer has 3-5 connections. Dense clusters (>8 connections with high strength scores) may indicate organized crime or mule networks. Returns all direct connections with relationship type and transaction frequency.'
 # MAGIC RETURN
-# MAGIC     SELECT entity_id_2 as connected_to, relationship_type, 
-# MAGIC            risk_score, cluster_id, shared_attributes
+# MAGIC     SELECT target_customer_id as connected_to, relationship_type, 
+# MAGIC            strength_score, transaction_count, first_seen, last_seen
 # MAGIC     FROM ttan_demo_catalog_main.fsi_fraud_war_room.network_relationships
-# MAGIC     WHERE entity_id_1 = p_customer_id
+# MAGIC     WHERE source_customer_id = p_customer_id
 # MAGIC     UNION ALL
-# MAGIC     SELECT entity_id_1 as connected_to, relationship_type,
-# MAGIC            risk_score, cluster_id, shared_attributes
+# MAGIC     SELECT source_customer_id as connected_to, relationship_type,
+# MAGIC            strength_score, transaction_count, first_seen, last_seen
 # MAGIC     FROM ttan_demo_catalog_main.fsi_fraud_war_room.network_relationships
-# MAGIC     WHERE entity_id_2 = p_customer_id
+# MAGIC     WHERE target_customer_id = p_customer_id
 
 # COMMAND ----------
 
@@ -248,13 +249,12 @@ print(f"   Knowledge Assistant: {KA_ID}")
 # MAGIC     source_type STRING,
 # MAGIC     entity_name STRING,
 # MAGIC     entity_type STRING,
-# MAGIC     list_source STRING,
+# MAGIC     program_or_source STRING,
 # MAGIC     country STRING,
-# MAGIC     risk_category STRING,
-# MAGIC     severity STRING,
-# MAGIC     summary STRING
+# MAGIC     match_score DOUBLE,
+# MAGIC     description_or_headline STRING
 # MAGIC )
-# MAGIC COMMENT 'Screen customer against sanctions watchlists (OFAC, EU, UN, UK) and adverse media sources. Returns all hits from both sanctions lists and news. A sanctions match requires immediate escalation or block. Adverse media alone is suspicious but not conclusive. Also checks jurisdiction exposure.'
+# MAGIC COMMENT 'Screen customer against sanctions watchlists (OFAC, EU, UN, UK) and adverse media sources. Returns all hits from both sanctions lists and news. A sanctions match requires immediate escalation or block. Adverse media alone is suspicious but not conclusive.'
 # MAGIC RETURN
 # MAGIC     WITH customer_info AS (
 # MAGIC         SELECT name, country, nationality 
@@ -262,15 +262,16 @@ print(f"   Knowledge Assistant: {KA_ID}")
 # MAGIC         WHERE customer_id = p_customer_id
 # MAGIC     )
 # MAGIC     SELECT 'sanctions' as source_type, s.entity_name, s.entity_type, 
-# MAGIC            s.list_source, s.country, s.risk_category, 
-# MAGIC            CAST(NULL AS STRING) as severity, CAST(NULL AS STRING) as summary
+# MAGIC            s.program as program_or_source, s.country, s.match_score,
+# MAGIC            s.description as description_or_headline
 # MAGIC     FROM ttan_demo_catalog_main.fsi_fraud_war_room.sanctions_watchlist s, customer_info ci
 # MAGIC     WHERE LOWER(s.country) = LOWER(ci.country) 
 # MAGIC        OR LOWER(s.country) = LOWER(ci.nationality)
 # MAGIC     UNION ALL
 # MAGIC     SELECT 'adverse_media' as source_type, am.entity_name, CAST(NULL AS STRING) as entity_type,
-# MAGIC            am.source as list_source, CAST(NULL AS STRING) as country, am.risk_category,
-# MAGIC            am.severity, am.summary
+# MAGIC            am.source as program_or_source, CAST(NULL AS STRING) as country, 
+# MAGIC            am.credibility_score as match_score,
+# MAGIC            am.headline as description_or_headline
 # MAGIC     FROM ttan_demo_catalog_main.fsi_fraud_war_room.adverse_media am, customer_info ci
 # MAGIC     WHERE LOWER(am.entity_name) LIKE CONCAT('%', LOWER(SPLIT(ci.name, ' ')[0]), '%')
 
@@ -284,8 +285,7 @@ print(f"   Knowledge Assistant: {KA_ID}")
 # MAGIC -- =============================================================================
 # MAGIC
 # MAGIC CREATE OR REPLACE FUNCTION ttan_demo_catalog_main.fsi_fraud_war_room.get_similar_cases(
-# MAGIC     p_typology STRING COMMENT 'The fraud typology to search for (structuring, layering, mule_network, sanctions_evasion, identity_fraud)',
-# MAGIC     p_limit INT DEFAULT 5 COMMENT 'Number of similar cases to return'
+# MAGIC     p_typology STRING COMMENT 'The fraud typology to search for (structuring, layering, mule_network, sanctions_evasion, identity_fraud)'
 # MAGIC )
 # MAGIC RETURNS TABLE (
 # MAGIC     case_id STRING,
@@ -297,14 +297,13 @@ print(f"   Knowledge Assistant: {KA_ID}")
 # MAGIC     sar_filed BOOLEAN,
 # MAGIC     embedding_text STRING
 # MAGIC )
-# MAGIC COMMENT 'Retrieve historical case precedents by fraud typology. Returns past investigation outcomes, SAR filing rates, and resolution timelines. Use to reason over what happened in similar past cases and inform the current verdict. Complements the Knowledge Assistant for direct SQL access to case data.'
+# MAGIC COMMENT 'Retrieve up to 5 historical case precedents by fraud typology. Returns past investigation outcomes, SAR filing rates, and resolution timelines. Use to reason over what happened in similar past cases and inform the current verdict.'
 # MAGIC RETURN
 # MAGIC     SELECT case_id, typology, outcome, amount_range, jurisdiction,
 # MAGIC            resolution_time_hours, sar_filed, embedding_text
 # MAGIC     FROM ttan_demo_catalog_main.fsi_fraud_war_room.similar_past_cases
 # MAGIC     WHERE typology = p_typology
-# MAGIC     ORDER BY RAND()
-# MAGIC     LIMIT p_limit
+# MAGIC     LIMIT 5
 
 # COMMAND ----------
 
