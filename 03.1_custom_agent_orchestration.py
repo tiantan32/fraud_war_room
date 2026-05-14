@@ -386,8 +386,8 @@ def run_knowledge_assistant_agent(customer_id: str, alert_type: str) -> AgentRes
     }
     target_typology = typology_map.get(alert_type, "structuring")
     
-    # UC Tool: get_similar_cases
-    cases = call_tool("get_similar_cases", p_typology=target_typology, p_limit=5)
+    # UC Tool: get_similar_cases (1 param: p_typology)
+    cases = call_tool("get_similar_cases", p_typology=target_typology)
     tool_calls.append({"tool": "get_similar_cases", "typology": target_typology, "count": len(cases)})
     
     # Compute stats

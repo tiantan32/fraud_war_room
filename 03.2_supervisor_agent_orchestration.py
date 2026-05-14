@@ -125,7 +125,7 @@ WAR_ROOM_TOOLS = [
         "type": "uc_function",
         "uc_function": {
             "name": f"{FQN}.get_alert_details",
-            "description": "Look up alert details: customer, type, severity, triggering transaction. Always call this first."
+            "description": "Look up alert details: customer_id, alert_type, severity, status, assigned_agent, alert_timestamp. Always call this first."
         }
     },
     {
@@ -133,9 +133,9 @@ WAR_ROOM_TOOLS = [
         "uc_function": {
             "name": f"{FQN}.get_transaction_analysis",
             "description": (
-                "Aggregate transaction statistics: totals, near-$10K structuring count, "
-                "velocity, wire %, international %, unique countries/devices. "
-                "Key for detecting structuring and velocity anomalies."
+                "Aggregate transaction statistics: txn_count, total_amount, avg_amount, max_amount, "
+                "near_10k_count (structuring indicator >3), daily_velocity (anomaly >5), "
+                "wire_count, intl_count, unique_countries, unique_devices, flagged_count."
             )
         }
     },
@@ -144,8 +144,9 @@ WAR_ROOM_TOOLS = [
         "uc_function": {
             "name": f"{FQN}.get_customer_risk_profile",
             "description": (
-                "Full customer KYC profile: PEP status, risk score, occupation, income, "
-                "account age, alert count, open cases. Essential for due diligence assessment."
+                "Full customer KYC profile: name, segment, country, nationality, occupation, "
+                "annual_income, source_of_funds, kyc_status, pep_flag, risk_score, "
+                "alert_count, case_count, open_cases. PEP + elevated activity = escalate."
             )
         }
     },
@@ -154,9 +155,9 @@ WAR_ROOM_TOOLS = [
         "uc_function": {
             "name": f"{FQN}.get_network_analysis",
             "description": (
-                "Network graph: 1st-hop connections, relationship types, cluster IDs, "
-                "shared attributes. Dense clusters (>8 nodes, high risk scores) suggest "
-                "mule networks. Normal customers have 3-5 connections."
+                "1st-hop network graph: connected_to, relationship_type, strength_score, "
+                "transaction_count, first_seen, last_seen. Dense clusters (>8 connections "
+                "with high strength_score) suggest mule networks. Normal = 3-5 connections."
             )
         }
     },
@@ -164,7 +165,11 @@ WAR_ROOM_TOOLS = [
         "type": "uc_function",
         "uc_function": {
             "name": f"{FQN}.get_high_risk_transactions",
-            "description": "Individual high-risk transactions (risk_score >= 60). Use after statistics reveal suspicious patterns."
+            "description": (
+                "Individual high-risk transactions (risk_score >= 60): transaction_id, amount, "
+                "transaction_type, counterparty_country, channel, is_international. "
+                "Use after get_transaction_analysis reveals suspicious patterns."
+            )
         }
     },
     {
@@ -172,9 +177,20 @@ WAR_ROOM_TOOLS = [
         "uc_function": {
             "name": f"{FQN}.screen_sanctions_and_media",
             "description": (
-                "Sanctions watchlist (OFAC/EU/UN/UK) + adverse media screening. "
-                "A direct sanctions match requires immediate escalation or block. "
-                "Media hits alone are suspicious but not conclusive."
+                "Sanctions watchlist (OFAC/EU/UN/UK) + adverse media screening. Returns: "
+                "source_type (sanctions/adverse_media), entity_name, match_score, "
+                "program_or_source, description_or_headline. Direct sanctions match = block/escalate."
+            )
+        }
+    },
+    {
+        "type": "uc_function",
+        "uc_function": {
+            "name": f"{FQN}.get_similar_cases",
+            "description": (
+                "Historical case precedents by typology (1 param: p_typology). Returns up to 5 "
+                "cases with: case_id, outcome, amount_range, jurisdiction, resolution_time_hours, "
+                "sar_filed. Use to reason over what happened in similar past investigations."
             )
         }
     },
@@ -182,7 +198,13 @@ WAR_ROOM_TOOLS = [
 
 print(f"✅ Supervisor tools defined: {len(WAR_ROOM_TOOLS)} hosted tools")
 for t in WAR_ROOM_TOOLS:
-    print(f"   • {t['type']}: {list(t[t['type']].values())[0] if t['type'] != 'uc_function' else t['uc_function']['name'].split('.')[-1]}")
+    ttype = t['type']
+    if ttype == 'uc_function':
+        print(f"   • uc_function: {t['uc_function']['name'].split('.')[-1]}")
+    elif ttype == 'genie_space':
+        print(f"   • genie_space: {t['genie_space']['id'][:16]}...")
+    else:
+        print(f"   • knowledge_assistant: {t['knowledge_assistant']['knowledge_assistant_id'][:16]}...")
 
 # COMMAND ----------
 
